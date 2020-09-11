@@ -1,7 +1,3 @@
-# AndroidStudyCode
-study Android recode
-
-
 git准备流程：
 
 							1.
