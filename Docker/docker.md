@@ -68,7 +68,7 @@ https://docs.docker.com/engine/install/centos/
 > systemctl start docker
 > 
 > #7.查看否安装成功
-> dockr version
+> docker version
 > 
 > #8.设置开机自动启动
 > systemctl enable docker
@@ -295,11 +295,12 @@ docker rmi -f $(docker images -aq) #删除全部的镜像
 > **常用命令**
 >
 > ```sh
-> docker run 镜像id #新建容器并启动
+> docker run 镜像id #新建容器
 > 
 > docker ps #列出所有运行的容器 
 > 
 > docker rm 容器id #删除指定容器
+> docker rm $(docker ps -aq) #删除所有容器
 > 
 > docker start 容器id	#启动容器
 > docker restart 容器id	#重启容器
@@ -1144,7 +1145,6 @@ ENTRYPOINT			# entrypoint:指定这个容器启动的时候要运行的命令，
 ONBUILD				# onbuild:当构建一个被继承DockerFile这个时候就会运行onbuild的指令，触发指令
 COPY				# copy:类似ADD，将我们文件拷贝到镜像中
 ENV					# env:构建的时候设置环境变量！
-123456789101112
 ```
 
 ![在这里插入图片描述](docker.assets/20200524154609624.png)
@@ -1169,7 +1169,6 @@ LABEL \
     org.opencontainers.image.created="2020-05-04 00:00:00+01:00"
 
 CMD ["/bin/bash"]
-123456789101112131415
 ```
 
 **Docker Hub 中 99%的镜像都是从这个基础镜像过来的 FROM scratch**，然后配置需要的软件和配置来进行构建。
@@ -1206,7 +1205,6 @@ CMD /bin/bash						# 启动后进入 /bin/bash
 $ docker build -f mydockerfile-centos -t mycentos:0.1 .
 
 # 5.出现下图后则构建成功
-123456789101112131415161718192021222324252627
 ```
 
 ![img](docker.assets/aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NoZW5nY29kZXgvY2xvdWRpbWcvbWFzdGVyL2ltZy9pbWFnZS0yMDIwMDUxNjE0MDgzMTQ2NC5wbmc)
@@ -1226,7 +1224,6 @@ $ ifconfig     						# ifconfig 指令可以使用
 
 # docker history 镜像id 查看镜像构建历史步骤
 $ docker history 镜像id
-1234567891011121314
 ```
 
 ![img](docker.assets/aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NoZW5nY29kZXgvY2xvdWRpbWcvbWFzdGVyL2ltZy9pbWFnZS0yMDIwMDUxNjE0MTYyOTU4My5wbmc)
@@ -1242,7 +1239,6 @@ $ docker history 镜像id
 ```shell
 CMD					# 指定这个容器启动的时候要运行的命令，只有最后一个会生效，可被替代。
 ENTRYPOINT			# 指定这个容器启动的时候要运行的命令，可以追加命令
-12
 ```
 
 **测试cmd**
@@ -1322,7 +1318,6 @@ Dockerfile中很多命令都十分的相似，我们需要了解它们的区别�
 
 ```
 准备tomcat 和 jdk 到当前目录，编写好README
-1
 ```
 
 ![img](docker.assets/aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NoZW5nY29kZXgvY2xvdWRpbWcvbWFzdGVyL2ltZy9pbWFnZS0yMDIwMDUxNjE2MjQ0MzY1Mi5wbmc)
@@ -1348,7 +1343,7 @@ ENV CATALINA_BASH /usr/local/apache-tomcat-9.0.35
 
 # 设置环境变量 分隔符是：
 ENV PATH $PATH:$JAVA_HOME/bin:$CATALINA_HOME/lib:$CATALINA_HOME/bin 	
-
+	
 EXPOSE 8080 										# 设置暴露的端口
 
 CMD /usr/local/apache-tomcat-9.0.35/bin/startup.sh && tail -F /usr/local/apache-tomcat-9.0.35/logs/catalina.out 					# 设置默认命令
@@ -1366,8 +1361,8 @@ $ docker build -t diytomcat .
 ```shell
 # -d:后台运行 -p:暴露端口 --name:别名 -v:绑定路径 
 $ docker run -d -p 9090:8080 --name tomcat01 
--v /home/kuangshen/build/tomcat/test:/usr/local/apache-tomcat-9.0.35/webapps/test 
--v /home/kuangshen/build/tomcat/tomcatlogs/:/usr/local/apache-tomcat-9.0.35/logs mytomcat:0.1
+-v /home/wangchenyang/build/tomcat/test:/usr/local/apache-tomcat-9.0.37/webapps/test 
+-v /home/wangchenyang/build/tomcat/tomcatlogs/:/usr/local/apache-tomcat-9.0.37/logs mytomcat:0.1
 ```
 
 ##### 5、访问测试
@@ -1375,7 +1370,7 @@ $ docker run -d -p 9090:8080 --name tomcat01
 ```shell
 $ docker exec -it 自定义容器的id /bin/bash
 
-$ cul localhost:8080
+$ curl localhost:8080
 ```
 
 ##### 6、发布项目
