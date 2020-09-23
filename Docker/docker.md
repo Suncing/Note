@@ -1440,7 +1440,7 @@ $ sudo docker push registry.cn-shenzhen.aliyuncs.com/dsadxzc/cheng:[镜像版本
 
 ![img](docker.assets/aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2NoZW5nY29kZXgvY2xvdWRpbWcvbWFzdGVyL2ltZy9pbWFnZS0yMDIwMDUxNjE3MTE1NTY2Ny5wbmc)
 
-# Docker 网络
+# 七、Docker 网络
 
 学习之前**清空下前面的docker 镜像、容器**
 
@@ -1778,3 +1778,334 @@ $ docker build -t xxxxx:xx  .
 5、发布运行
 
 以后我们使用了Docker之后，给别人交付就是一个镜像即可！
+
+# 八、案例
+
+## 1.tomcat+jdk
+
+Dockerfile
+
+```shell
+FROM centos
+MAINTAINER wangchenyang<980885033@qq.com>
+
+COPY readme.txt /usr/local/readme.txt
+
+ADD apache-tomcat-9.0.37.tar.gz /usr/local
+ADD jdk-8u261-linux-x64.tar.gz /usr/local
+
+RUN yum -y install vim
+RUN yum -y install net-tools
+RUN yum -y install curl
+
+ENV MYPATH /usr/local
+WORKDIR $MYPATH
+
+ENV JAVA_HOME /usr/local/jdk1.8.0_261
+ENV CLASSPATH $JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
+
+ENV CATALINA_HOME /usr/local/apache-tomcat-9.0.37
+ENV CATALINA_BASE /usr/local/apache-tomcat-9.0.37
+ENV PATH $PATH:$JAVA_HOME/bin:$CATALINE_HOME/lib:$CATALINE_HOME/bin
+
+EXPOSE 8080
+ENTRYPOINT  /usr/local/apache-tomcat-9.0.37/bin/startup.sh && tail -F /usr/local/apache-tomcat-9.0.37/bin/logs/catalina.out
+```
+
+## 2.jdk+tomcat+redis+nginx
+
+![image-20200923181009922](docker.assets/image-20200923181009922.png)
+
+```sh
+# 1.准备工作创建文件夹
+RUN mkdir -p /opt/tools  && mkdir -p /etc/redis && mkdir /opt/logs 
+
+# 复制文件
+COPY softwares/jdk-8u261-linux-x64.tar.gz /opt/tools
+COPY softwares/redis-3.2.9.tar.gz /opt/tools
+COPY softwares/apache-tomcat-9.0.37.tar.gz /opt/tools
+COPY redis.conf /etc/redis/redis.conf
+COPY supervisord.conf /etc/supervisord.conf
+COPY program.conf /etc/program.conf
+# 复制nginx安装文件
+COPY softwares/nginx-1.14.2.tar.gz /opt/tools
+#COPY nginx.conf /opt/tools/nginx.conf
+
+
+# 安装 sshd 修改密码
+RUN \
+    yum install passwd openssl openssh-server -y \
+    && ssh-keygen -q -t rsa -b 2048 -f /etc/ssh/ssh_host_rsa_key -N '' \
+    && ssh-keygen -q -t ecdsa -f /etc/ssh/ssh_host_ecdsa_key -N '' \
+    && ssh-keygen -t dsa -f /etc/ssh/ssh_host_ed25519_key  -N '' \
+    && sed -i "s/#UsePrivilegeSeparation.*/UsePrivilegeSeparation no/g" /etc/ssh/sshd_config \
+    && sed -i "s/UsePAM.*/UsePAM no/g" /etc/ssh/sshd_config \
+    && echo 123456 | passwd --stdin root \
+    && echo root:123456|chpasswd \
+    && rm -rf /var/cache/yum/*
+# 安装redis
+RUN \
+    yum install make -y \
+    && yum install gcc -y \
+    && cd /opt/tools \
+    && tar -xzf redis-3.2.9.tar.gz \
+    && rm -rf redis-3.2.9.tar.gz \
+    && cd redis-3.2.9 && yum -y install tcl && make && make install \
+    && cd /opt/tools \
+    && rm -rf redis-3.2.9 \
+    && rm -rf /var/cache/yum/*
+# 安装 nginx
+RUN \
+    yum -y install gcc-c++ zlib zlib-devel openssl openssl-devel pcre pcre-devel \
+    && cd /opt/tools \
+    && tar -zxv -f nginx-1.14.2.tar.gz \
+    && rm -rf nginx-1.14.2.tar.gz \
+    && cd nginx-1.14.2 \
+    && ./configure --with-http_stub_status_module \
+    && make && make install \
+    && cd .. \
+    && rm -rf nginx-1.14.2 \
+    && rm -rf /var/cache/yum/*
+#   && echo "daemon off" >> /usr/local/nginx/conf/nginx.conf
+#   && cp -rf /opt/tools/nginx.conf /usr/local/nginx/conf/nginx.conf
+
+
+
+# 设置java环境变量
+RUN \
+    cd /opt/tools \
+        && tar -zxvf jdk-8u261-linux-x64.tar.gz \
+        && rm -rf jdk-8u261-linux-x64.tar.gz \
+        && tar -zxvf apache-tomcat-9.0.37.tar.gz \
+        && rm -rf apache-tomcat-9.0.37.tar.gz \
+    && echo 'export JAVA_HOME=/opt/tools/jdk1.8.0_261' >> /etc/profile \
+    && echo 'export PATH=$JAVA_HOME/bin:$PATH' >> /etc/profile \
+    && echo 'export CLASSPATH=.:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar' >> /etc/profile \
+    && source /etc/profile
+# 设置环境变量
+
+EXPOSE 22 80 3306 6379
+
+#CMD /usr/sbin/init
+
+```
+
+redis.conf
+
+```sh
+daemonize no
+supervised no
+pidfile /var/run/redis_6379.pid
+loglevel notice
+logfile ""
+databases 16
+save 900 1
+save 300 10
+save 60 10000
+stop-writes-on-bgsave-error yes
+rdbcompression yes
+rdbchecksum yes
+dbfilename dump.rdb
+dir ./
+slave-serve-stale-data yes
+slave-read-only yes
+repl-diskless-sync no
+repl-diskless-sync-delay 5
+repl-disable-tcp-nodelay no
+slave-priority 100
+
+appendonly no
+appendfilename "appendonly.aof"
+appendfsync everysec
+no-appendfsync-on-rewrite no
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+aof-load-truncated yes
+lua-time-limit 5000
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+latency-monitor-threshold 0
+notify-keyspace-events ""
+hash-max-ziplist-entries 512
+hash-max-ziplist-value 64
+list-max-ziplist-size -2
+list-compress-depth 0
+set-max-intset-entries 512
+zset-max-ziplist-entries 128
+zset-max-ziplist-value 64
+hll-sparse-max-bytes 3000
+activerehashing yes
+client-output-buffer-limit normal 0 0 0
+client-output-buffer-limit slave 256mb 64mb 60
+client-output-buffer-limit pubsub 32mb 8mb 60
+hz 10
+aof-rewrite-incremental-fsync yes
+
+```
+
+porgram.config
+
+```sh
+[program:mysql]
+command=mysqld --user=mysql
+
+[program:nginx]
+autostart=true
+autorestart=true
+command=/usr/local/nginx/sbin/nginx -g "daemon off;" -c /usr/local/nginx/conf/nginx.conf
+
+[supervisorctl]
+serverurl=unix:///tmp/supervisor.sock ; use a unix:// URL  for a unix socket
+
+[program:sshd]
+command=/usr/sbin/sshd -D
+autostart=true
+autorestart=true
+
+[program:redis]
+tartsecs=50
+command=/usr/local/bin/redis-server /etc/redis/redis.conf
+
+```
+
+
+
+supervisor.conf
+
+```sh
+[unix_http_server]
+file=/tmp/supervisor.sock   ; (the path to the socket file)
+;chmod=0700                 ; socket file mode (default 0700)
+;chown=nobody:nogroup       ; socket file uid:gid owner
+;username=user              ; (default is no username (open server))
+;password=123               ; (default is no password (open server))
+
+;[inet_http_server]         ; inet (TCP) server disabled by default
+;port=127.0.0.1:9001        ; (ip_address:port specifier, *:port for all iface)
+;username=user              ; (default is no username (open server))
+;password=123               ; (default is no password (open server))
+
+[supervisord]
+#logfile=/opt/logs/supervisord.log ; (main log file;default $CWD/supervisord.log)
+#logfile_maxbytes=2MB        ; (max main logfile bytes b4 rotation;default 50MB)
+#logfile_backups=2            ; (num of main logfile rotation backups;default 10)
+#loglevel=info                ; (log level;default info; others: debug,warn,trace)
+pidfile=/tmp/supervisord.pid ; (supervisord pidfile;default supervisord.pid)
+nodaemon=true               ; (start in foreground if true;default false)
+minfds=1024                  ; (min. avail startup file descriptors;default 1024)
+minprocs=200                 ; (min. avail process descriptors;default 200)
+;umask=022                   ; (process file creation umask;default 022)
+;user=chrism                 ; (default is current user, required if root)
+;identifier=supervisor       ; (supervisord identifier, default is 'supervisor')
+;directory=/tmp              ; (default is not to cd during start)
+;nocleanup=true              ; (don't clean up tempfiles at start;default false)
+;childlogdir=/tmp            ; ('AUTO' child log dir, default $TEMP)
+;environment=KEY="value"     ; (key value pairs to add to environment)
+;strip_ansi=false            ; (strip ansi escape codes in logs; def. false)
+
+; the below section must remain in the config file for RPC
+; (supervisorctl/web interface) to work, additional interfaces may be
+; added by defining them in separate rpcinterface: sections
+[rpcinterface:supervisor]
+supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
+
+[supervisorctl]
+serverurl=unix:///tmp/supervisor.sock ; use a unix:// URL  for a unix socket
+;serverurl=http://127.0.0.1:9001 ; use an http:// url to specify an inet socket
+;username=chris              ; should be same as http_username if set
+;password=123                ; should be same as http_password if set
+;prompt=mysupervisor         ; cmd line prompt (default "supervisor")
+;history_file=~/.sc_history  ; use readline history if available
+
+; The below sample program section shows all possible program subsection values,
+; create one or more 'real' program: sections to be able to control them under
+; supervisor.
+
+;[program:theprogramname]
+;command=/bin/cat              ; the program (relative uses PATH, can take args)
+;process_name=%(program_name)s ; process_name expr (default %(program_name)s)
+;numprocs=1                    ; number of processes copies to start (def 1)
+;directory=/tmp                ; directory to cwd to before exec (def no cwd)
+;umask=022                     ; umask for process (default None)
+;priority=999                  ; the relative start priority (default 999)
+;autostart=true                ; start at supervisord start (default: true)
+;autorestart=unexpected        ; whether/when to restart (default: unexpected)
+;startsecs=1                   ; number of secs prog must stay running (def. 1)
+;startretries=3                ; max # of serial start failures (default 3)
+;exitcodes=0,2                 ; 'expected' exit codes for process (default 0,2)
+;stopsignal=QUIT               ; signal used to kill process (default TERM)
+;stopwaitsecs=10               ; max num secs to wait b4 SIGKILL (default 10)
+;stopasgroup=false             ; send stop signal to the UNIX process group (default false)
+;killasgroup=false             ; SIGKILL the UNIX process group (def false)
+;user=chrism                   ; setuid to this UNIX account to run the program
+;redirect_stderr=true          ; redirect proc stderr to stdout (default false)
+;stdout_logfile=/a/path        ; stdout log path, NONE for none; default AUTO
+;stdout_logfile_maxbytes=1MB   ; max # logfile bytes b4 rotation (default 50MB)
+;stdout_logfile_backups=10     ; # of stdout logfile backups (default 10)
+;stdout_capture_maxbytes=1MB   ; number of bytes in 'capturemode' (default 0)
+;stdout_events_enabled=false   ; emit events on stdout writes (default false)
+;stderr_logfile=/a/path        ; stderr log path, NONE for none; default AUTO
+;stderr_logfile_maxbytes=1MB   ; max # logfile bytes b4 rotation (default 50MB)
+;stderr_logfile_backups=10     ; # of stderr logfile backups (default 10)
+;stderr_capture_maxbytes=1MB   ; number of bytes in 'capturemode' (default 0)
+;stderr_events_enabled=false   ; emit events on stderr writes (default false)
+;environment=A="1",B="2"       ; process environment additions (def no adds)
+;serverurl=AUTO                ; override serverurl computation (childutils)
+
+; The below sample eventlistener section shows all possible
+; eventlistener subsection values, create one or more 'real'
+; eventlistener: sections to be able to handle event notifications
+; sent by supervisor.
+
+;[eventlistener:theeventlistenername]
+;command=/bin/eventlistener    ; the program (relative uses PATH, can take args)
+;process_name=%(program_name)s ; process_name expr (default %(program_name)s)
+;numprocs=1                    ; number of processes copies to start (def 1)
+;events=EVENT                  ; event notif. types to subscribe to (req'd)
+;buffer_size=10                ; event buffer queue size (default 10)
+;directory=/tmp                ; directory to cwd to before exec (def no cwd)
+;umask=022                     ; umask for process (default None)
+;priority=-1                   ; the relative start priority (default -1)
+;autostart=true                ; start at supervisord start (default: true)
+;autorestart=unexpected        ; whether/when to restart (default: unexpected)
+;startsecs=1                   ; number of secs prog must stay running (def. 1)
+;startretries=3                ; max # of serial start failures (default 3)
+;exitcodes=0,2                 ; 'expected' exit codes for process (default 0,2)
+;stopsignal=QUIT               ; signal used to kill process (default TERM)
+;stopwaitsecs=10               ; max num secs to wait b4 SIGKILL (default 10)
+;stopasgroup=false             ; send stop signal to the UNIX process group (default false)
+;killasgroup=false             ; SIGKILL the UNIX process group (def false)
+;user=chrism                   ; setuid to this UNIX account to run the program
+;redirect_stderr=true          ; redirect proc stderr to stdout (default false)
+;stdout_logfile=/a/path        ; stdout log path, NONE for none; default AUTO
+;stdout_logfile_maxbytes=1MB   ; max # logfile bytes b4 rotation (default 50MB)
+;stdout_logfile_backups=10     ; # of stdout logfile backups (default 10)
+;stdout_events_enabled=false   ; emit events on stdout writes (default false)
+;stderr_logfile=/a/path        ; stderr log path, NONE for none; default AUTO
+;stderr_logfile_maxbytes=1MB   ; max # logfile bytes b4 rotation (default 50MB)
+;stderr_logfile_backups        ; # of stderr logfile backups (default 10)
+;stderr_events_enabled=false   ; emit events on stderr writes (default false)
+;environment=A="1",B="2"       ; process environment additions
+;serverurl=AUTO                ; override serverurl computation (childutils)
+
+; The below sample group section shows all possible group values,
+; create one or more 'real' group: sections to create "heterogeneous"
+; process groups.
+
+;[group:thegroupname]
+;programs=progname1,progname2  ; each refers to 'x' in [program:x] definitions
+
+; The [include] section can just contain the "files" setting.  This
+; setting can list multiple files (separated by whitespace or
+; newlines).  It can also contain wildcards.  The filenames are
+; interpreted as relative to this file.  Included files *cannot*
+; include files themselves.
+
+;[include]
+;files = relative/directory/*.ini
+
+[include]
+files = /etc/program.conf
+
+```
+
